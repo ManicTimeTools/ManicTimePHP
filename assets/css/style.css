@@ -1,12 +1,13 @@
 @font-face {
-  font-family: 'Open Sans';
-  font-style: normal;
-  font-weight: 400;
-  src: local('Open Sans'), local('OpenSans'), url(../opensans.woff) format('woff');
+	font-family: 'Open Sans';
+	font-style: normal;
+	font-weight: 400;
+	src: local('Open Sans'), local('OpenSans'), url(../opensans.woff) format('woff');
 }
 
 body {
 	font-family: 'Open Sans', 'sans-serif';
+	margin: 0px;
 }
 
 #content {
