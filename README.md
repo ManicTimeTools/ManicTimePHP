@@ -1,9 +1,9 @@
 About
 ===
-ManicTimeWeb is a web interface for (ManicTime)[http://www.manictime.com/]. Its
+ManicTimeWeb is a web interface for [ManicTime](http://www.manictime.com/). Its
 purpose is to share tracking statistics with others or simply have a better 
 interface for yourself. It supports many computers and can be used for an 
-enterprise to centralize employee tracking. You will need the (ManicTimeMonitor)[], 
+enterprise to centralize employee tracking. You will need the [ManicTimeMonitor](https://github.com/ManicTimeTools/ManicTimeMonitor),
 a client written in C# that runs periodically (or manually) to send your tracking
 data to ManicTimeWeb.
 
@@ -12,9 +12,9 @@ Requirements
 ===
  - MySQL
  - Webserver with PHP
- - ManicTimeMonitor
+ - [ManicTimeMonitor](https://github.com/ManicTimeTools/ManicTimeMonitor)
  
-It works with sqlite3 but given the nature of the project it is much, much better 
+It works with sqlite3 but given the nature of the project it is much, much better
 to use mysql. It may work with pgsql with some changes to the SQL queries.
 
 
