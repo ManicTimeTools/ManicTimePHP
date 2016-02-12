@@ -1,30 +1,27 @@
 <?php
 	require 'common.php';
-?>
-<!doctype html>
+?><!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>Where is your time now?</title>
 <script src="assets/js/jquery.js"></script>
-<script src="assets/js/jquery.datetimepicker.js"></script>
-<script src="assets/js/jquery.dataTables.min.js"></script>
-<script src="assets/js/app/index.js"></script>
 <link rel="stylesheet" type="text/css" href="assets/css/jquery.datetimepicker.css">
 <link rel="stylesheet" type="text/css" href="assets/css/jquery.dataTables.min.css">
 <link rel="stylesheet" type="text/css" href="assets/css/style.css">
 <link href="assets/images/time.png" rel="shortcut icon">
-<script>
-	setTimeout(function() {
-	if (!$('#content').is(':visible')) {
-		$('#wait').show();
-	}}, 200);
-</script>
 </head>
 <body>
 <div id="wait"><h1>Loading...</h1></div>
 <?php
-	echo str_repeat(' ', 1024*128); // Force flushing to show load screen. Otherwise all PHP could be before html...
+	if (empty($computers)) {
+		die('You need to run the client before something appears here!');
+	}
+
+	// We force the web server to flush the output to the client so that our loading screen appears.
+	// That's the only reason the PHP can't be put before the HTML.
+	echo str_repeat(' ', 1024 * 128);
+
 	$first = time(); $last = 0;
 	$programs = $groups = [];
 	$records = 0;
@@ -32,15 +29,15 @@
 	$min = isset($_GET['min']) ? intval($_GET['min']) : 15;
 	$limit = isset($_GET['limit']) ? intval($_GET['limit']) : 10;
 
-	$time_start = isset($_GET['start']) ? strtotime($_GET['start']) + 0 : strtotime('-6months');
+	$time_start = isset($_GET['start']) ? strtotime($_GET['start']) + 0 : strtotime('-1month');
 	$time_end = isset($_GET['end']) ? strtotime($_GET['end']) + 86340 : time();
 
 	$folders = [
 			null => ['name' => 'Computer Usage', 'sum' => 0, 'entries' => []],
-			3 => ['name' => 'Applications', 'sum' => 0, 'entries' => []],
-			1 => ['name' => 'Websites', 'sum' => 0, 'entries' => []],
-			2 => ['name' => 'Documents', 'sum' => 0, 'entries' => []],
-			12 =>['name' => 'Grouped by window title', 'sum' => 0, 'entries' => []],
+			3    => ['name' => 'Applications', 'sum' => 0, 'entries' => []],
+			1    => ['name' => 'Websites', 'sum' => 0, 'entries' => []],
+			2    => ['name' => 'Documents', 'sum' => 0, 'entries' => []],
+			12   => ['name' => 'Grouped by window title', 'sum' => 0, 'entries' => []],
 		];
 
 	$computer_usage = [
@@ -71,110 +68,84 @@
 								   'portal2']
 		];
 
-	is_dir($icons_dir = 'cache/' . $pc . '/icons/') or mkdir($icons_dir , 0755, true);
+	is_dir($icons_dir = 'cache/' . $current_pc . '/icons/') or mkdir($icons_dir , 0755, true);
 
-	$items = 0;
-	$last_update = 0;
 
-	if ( ! empty($pc_list)) {
-
-		if (isset($_GET['groupid'])) {
-			set_time_limit(0);
-			$r = $db->Query ('SELECT DisplayName, GroupId, 2 as FolderId, 4 as TimelineId, SUM(duration) as duration, MAX(EndLocalTime) as EndLocalTime, MIN(StartLocalTime) as StartLocalTime, SUM(Records) as Records
-							  FROM `'.$pc.'_Activity`
-							  WHERE GroupId = ' . intval($_GET['groupid']) . ' AND EndLocalTime <= ' . $time_end . ' AND StartLocalTime >= ' . $time_start . '
-							  GROUP BY DisplayName
-							  UNION
-							  SELECT DisplayName, GroupId, 2 as FolderId, TimelineId, 0 as duration, 0 as EndLocalTime, 99999999999 as StartLocalTime, 0 as Records
-							  FROM `'.$pc.'_Group`
-							  WHERE GroupId = ' . intval($_GET['groupid']) . ' AND TimelineId = 3
-							  ORDER BY TimelineId ASC, duration DESC
-							  LIMIT ' . ($limit * 1000 + 1)
-							);
-		} else {
-			$r = $db->Query ('SELECT g.*, sub.duration, sub.EndLocalTime, sub.StartLocalTime, SUM(sub.Records) as Records
-							  FROM `'.$pc.'_Group` as g
-							  INNER JOIN (SELECT GroupID, SUM(duration) as duration, MIN(StartLocalTime) as StartLocalTime, MAX(EndLocalTime) as EndLocalTime, SUM(Records) as Records
-										  FROM `'.$pc.'_Activity`
-										  WHERE EndLocalTime <= ' . $time_end . ' AND StartLocalTime >= ' . $time_start . '
-										  GROUP BY GroupID) as sub
-									USING (GroupID)
-							  WHERE sub.duration >= ' . strval($min * 60) . '
-							  GROUP BY GroupID
-							  ORDER by duration DESC'
-							);
-		}
-
-		while ($row = $r->fetch(PDO::FETCH_ASSOC)) {
-			switch ($row['TimelineId']) {
-				case 3: //Applications
-					if (!file_exists($icons_dir . $row['GroupId'] . '.png')) {
-						file_put_contents($icons_dir .  $row['GroupId'] . '.png', base64_decode($row['Icon32']));
-					}
-					foreach($program_groups as $group => &$p) {
-						if (in_array($row['DisplayName'], $p)) {
-							if (!isset($groups[$group])) {
-								$groups[$group]['DisplayName'] = $group;
-								$groups[$group]['GroupId']  = $row['GroupId'];
-								$groups[$group]['duration'] = 0;
-							}
-							$groups[$group]['duration'] += $row['duration'];
-							break;
-						}
-					}
-					$programs[] = $row;
-					break;
-
-				case 2: // Computer usage
-					$row['DisplayName'] = $computer_usage[$row['GroupId']];
-
-				default: // 1 = Tags or 4 = documents/websites
-					$row['DisplayName'] = str_replace($name_filter, '', $row['DisplayName']);
-					$folders[$row['FolderId']]['items'][] = $row;
-					$folders[$row['FolderId']]['sum'] += $row['duration'];
-					$records += $row['Records'];
-			}
-			if ($first > $row['StartLocalTime']) $first = $row['StartLocalTime'];
-			if ($last < $row['EndLocalTime']) $last = $row['EndLocalTime'];
-		}
-
-		$last_update = $db->Query('SELECT MAX(EndLocalTime) FROM `'.$pc.'_Activity`')->fetchColumn();
-
-		$items = $r->rowCount();
-
-		usort($groups, function($a, $b) {
-			return $a['duration'] < $b['duration'] ? 1 : -1;
-		});
+	if (isset($_GET['groupid'])) {
+		$r = $db->Query ('SELECT DisplayName, GroupId, 2 as FolderId, 4 as TimelineId, SUM(duration) as duration, MAX(EndLocalTime) as EndLocalTime, MIN(StartLocalTime) as StartLocalTime, SUM(Records) as Records
+						  FROM `'.$current_pc.'_Activity`
+						  WHERE GroupId = ' . intval($_GET['groupid']) . ' AND EndLocalTime <= ' . $time_end . ' AND StartLocalTime >= ' . $time_start . '
+						  GROUP BY DisplayName
+						  UNION
+						  SELECT DisplayName, GroupId, 2 as FolderId, TimelineId, 0 as duration, 0 as EndLocalTime, 99999999999 as StartLocalTime, 0 as Records
+						  FROM `'.$current_pc.'_Group`
+						  WHERE GroupId = ' . intval($_GET['groupid']) . ' AND TimelineId = 3
+						  ORDER BY TimelineId ASC, duration DESC
+						  LIMIT ' . ($limit * 1000 + 1)
+						);
+	} else {
+		$r = $db->Query ('SELECT g.*, sub.duration, sub.EndLocalTime, sub.StartLocalTime, SUM(sub.Records) as Records
+						  FROM `'.$current_pc.'_Group` as g
+						  INNER JOIN (SELECT GroupID, SUM(duration) as duration, MIN(StartLocalTime) as StartLocalTime, MAX(EndLocalTime) as EndLocalTime, SUM(Records) as Records
+									  FROM `'.$current_pc.'_Activity`
+									  WHERE EndLocalTime <= ' . $time_end . ' AND StartLocalTime >= ' . $time_start . '
+									  GROUP BY GroupID) as sub
+								USING (GroupID)
+						  WHERE sub.duration >= ' . strval($min * 60) . '
+						  GROUP BY GroupID
+						  ORDER by duration DESC'
+						);
 	}
+
+	while ($row = $r->fetch(PDO::FETCH_ASSOC)) {
+		switch ($row['TimelineId']) {
+			case 3: //Applications
+				if (!file_exists($icons_dir . $row['GroupId'] . '.png')) {
+					file_put_contents($icons_dir .  $row['GroupId'] . '.png', base64_decode($row['Icon32']));
+				}
+				foreach($program_groups as $group => &$p) {
+					if (in_array($row['DisplayName'], $p)) {
+						if (!isset($groups[$group])) {
+							$groups[$group]['DisplayName'] = $group;
+							$groups[$group]['GroupId']  = $row['GroupId'];
+							$groups[$group]['duration'] = 0;
+						}
+						$groups[$group]['duration'] += $row['duration'];
+						break;
+					}
+				}
+				$programs[] = $row;
+				break;
+
+			case 2: // Computer usage
+				$row['DisplayName'] = $computer_usage[$row['GroupId']];
+
+			default: // 1 = Tags or 4 = documents/websites
+				$row['DisplayName'] = str_replace($name_filter, '', $row['DisplayName']);
+				$folders[$row['FolderId']]['items'][] = $row;
+				$folders[$row['FolderId']]['sum'] += $row['duration'];
+				$records += $row['Records'];
+		}
+		if ($first > $row['StartLocalTime']) $first = $row['StartLocalTime'];
+		if ($last < $row['EndLocalTime']) $last = $row['EndLocalTime'];
+	}
+
+	$last_update = $db->Query('SELECT MAX(EndLocalTime) FROM `'.$current_pc.'_Activity`')->fetchColumn();
 
 	$sql_time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
 
-	function short($text, $length, $middle = true) {
-		if (strlen($text) - 3 > $length) {
-			if ($middle)
-				$text = substr($text, 0, ceil($length/2)) . '...' . substr($text, -ceil($length/2));
-			else
-				$text = substr($text, 0, $length-3) . '...';
-		}
-		return $text;
-	}
+	$items = $r->rowCount();
 
-	function hm($sec) {
-		$hours = intval($sec/3600);
-		if ($hours) {
-			$sec -= $hours * 3600;
-		}
-		$min = intval($sec/60);
-
-		return sprintf('%00.0fh %02.0fm', $hours, $min);
-	}
+	usort($groups, function($a, $b) {
+		return $a['duration'] < $b['duration'] ? 1 : -1;
+	});
 ?>
 <form method="get" autocomplete="off" id="content">
 	<div class="header">
 		<select id="pc-selector" name="pc">
 		<?php
-			foreach($pc_list as $pc_ => $label) {
-				echo '<option value="' . $pc_ . '"' . ($pc == $pc_ ? ' selected':'') . '>' . $label . '</option>';
+			foreach($computers as $pc => $label) {
+				echo '<option value="' . $pc . '"' . ($pc === $current_pc ? ' selected':'') . '>' . $label . '</option>';
 			}
 		?>
 		</select>
@@ -192,7 +163,7 @@
 	</div>
 	<div class="range">
 		<div class="right">Updated: <?php echo '<strong>' . date('Y-m-d \a\t H:i', $last_update) . '</strong>' ?></div>
-		<small class="left"><a href="crunch.php?pc=<?=$pc?>">Crunch me Sindee</a> SQL: <strong><?php echo round($sql_time, 4) . ' sec.';  ?></strong></small>
+		<small class="left"><a href="crunch.php?pc=<?=$current_pc?>">Compact records</a> SQL: <strong><?php echo round($sql_time, 4) . ' sec.';  ?></strong></small>
 		<?php echo '<strong>' . $items . '</strong> items (<strong>' . $records . '</strong> records) in actual date range: <strong>' . date('Y-m-d', $first) . '</strong> to <strong>' . date('Y-m-d', $last) . '</strong>'; ?>
 	</div>
 	<div class="wrapper <?=isset($_GET['groupid'])?'smaller':''?>">
@@ -210,8 +181,9 @@
 					if ($set) {
 						echo '<table>';
 						foreach($set as $row) {
+							//<a href="?'.build_query(['groupid' => $row['GroupId']]).'">
 							echo '<tr title="'.htmlentities(@$row['TextData']).'" class="group" data-group="'.$row['GroupId'].'"><td class="icon"><img src="' . $icons_dir . $row['GroupId'] . '.png"></td>';
-							echo '<td>' . short($row['DisplayName'], 34, false) . '</td><td style="text-align:right;">' . hm($row['duration']) . '</td></tr>';
+							echo '<td><span>'.short($row['DisplayName'], 34, false) . '</span></td><td style="text-align:right;">' . hm($row['duration']) . '</td></tr>';
 						}
 						echo '</table><hr>';
 					}
@@ -232,7 +204,7 @@
 				foreach($folder['items'] as $i => $row) {
 					echo '<tr class="group" data-group="'.$row['GroupId'].'">
 								 <td title="This entry was present from  ' . date('Y-m-d H:i', $row['StartLocalTime']) . '  to  ' . date('Y-m-d H:i', $row['EndLocalTime']) . '"
-									 class="name">' . htmlentities(short($row['DisplayName'], 120)) . '</td>'.
+									 class="name"><span>' . htmlentities(short($row['DisplayName'], 120)) . '</span></td>'.
 								'<td data-order="'.$row['duration'].'">' . hm($row['duration']) . '</td>'.
 								'<td data-order="'.$row['duration'].'">' . sprintf('%.2f', $row['duration']/$folder['sum'] * 100) .'%</td></tr>';
 				}
@@ -243,7 +215,11 @@
 	</div>
 </form>
 <div style="text-align:center; clear:both;">
-	<hr>Ain't got no time to lose !
+	<hr>
+	ManicTimeWeb
 </div>
+<script src="assets/js/jquery.datetimepicker.js"></script>
+<script src="assets/js/jquery.dataTables.min.js"></script>
+<script src="assets/js/app/index.js"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 $('.date').datetimepicker({
-	timepicker:false,
-	format:'Y-m-d',
+	timepicker:false, 
+	format:'Y-m-d', 
 	closeOnDateSelect:true,
 	onSelectDate: function(a,b) {b.blur();}
 });
@@ -18,7 +18,7 @@ $('form').submit(function () {
 $('select#pc-selector').change(function(e) {
 	$('form').submit();
 });
-$('.application img').click(function() {
+$('.application img, .group span').click(function() {
 	$(this).parent().dblclick();
 });
 $(document).on('dblclick', '.group', function() {

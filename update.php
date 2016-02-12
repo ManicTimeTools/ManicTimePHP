@@ -29,23 +29,24 @@ $Indexes = ['TimelineId', 'DisplayName', 'GroupId', 'StartLocalTime', 'EndLocalT
 
 
 if (isset($_GET['refresh'])) {
-	if (!isset($pc_list[$pc])) {
-		$db->Exec('insert into pc_list VALUES(' . $db->quote($pc) . ', ' . $db->quote($_GET['pc']) . ')');
+	if (!isset($computers[$current_pc])) {
+		$db->Exec('insert into computers (pc, pc_orig) VALUES(' . $db->quote($current_pc) . ', ' . $db->quote($_GET['pc']) . ')');
 	}
 	echo '<root>';
 	foreach($Tables as $table => $fields) {
 		try {
-			$q = $db->Query(sprintf('select max(%s) from `%s_%s`', key($fields), $pc, $table));
+			$q = $db->Query(sprintf('select max(%s) from `%s_%s`', key($fields), $current_pc, $table));
 			echo "<{$table}>0" . $q->fetchColumn() . "</{$table}>\n";
 		} catch (PDOException $e) {
 			$index = '';
+			$f = [];
 			foreach($Tables[$table] as $k => $v) {
 				$f[] = $k . ' ' . $v;
 				if (in_array($k, $Indexes)) {
 					$index .= ', INDEX(' . $k . ')';
 				}
 			}
-			$db->Exec(sprintf('CREATE TABLE IF NOT EXISTS `%s_%s` (%s %s)', $pc, $table, implode(',', $f), $index));
+			$db->Exec(sprintf('CREATE TABLE IF NOT EXISTS `%s_%s` (%s %s)', $current_pc, $table, implode(',', $f), $index));
 		}
 	}
 	echo '</root>';
@@ -73,7 +74,7 @@ elseif ($postdata = gzinflate(substr(file_get_contents('php://input'), 10, -8)))
 			$inserts[] = '(' . implode(',', $row) . ')';
 		}
 		for ($i = 0, $j = count($inserts); $i < $j; $i += 100) {
-			$db->Exec(sprintf('insert into `%s_%s` (%s) VALUES %s', $pc, $table, implode(',', array_keys($fields)), 
+			$db->Exec(sprintf('insert into `%s_%s` (%s) VALUES %s', $current_pc, $table, implode(',', array_keys($fields)), 
 						 implode(',', array_slice($inserts, $i, 100))));
 		}
 		echo $db->lastInsertId() ?: 'FAILURE';
