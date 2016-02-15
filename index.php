@@ -183,7 +183,7 @@
 						foreach($set as $row) {
 							//<a href="?'.build_query(['groupid' => $row['GroupId']]).'">
 							echo '<tr title="'.htmlentities(@$row['TextData']).'" class="group" data-group="'.$row['GroupId'].'"><td class="icon"><img src="' . $icons_dir . $row['GroupId'] . '.png"></td>';
-							echo '<td><span>'.short($row['DisplayName'], 34, false) . '</span></td><td style="text-align:right;">' . hm($row['duration']) . '</td></tr>';
+							echo '<td><span class="clickable">'.short($row['DisplayName'], 34, false) . '</span></td><td style="text-align:right;">' . hm($row['duration']) . '</td></tr>';
 						}
 						echo '</table><hr>';
 					}
@@ -204,7 +204,7 @@
 				foreach($folder['items'] as $i => $row) {
 					echo '<tr class="group" data-group="'.$row['GroupId'].'">
 								 <td title="This entry was present from  ' . date('Y-m-d H:i', $row['StartLocalTime']) . '  to  ' . date('Y-m-d H:i', $row['EndLocalTime']) . '"
-									 class="name"><span>' . htmlentities(short($row['DisplayName'], 120)) . '</span></td>'.
+									 class="name"><span class="clickable">' . htmlentities(short($row['DisplayName'], 120)) . '</span></td>'.
 								'<td data-order="'.$row['duration'].'">' . hm($row['duration']) . '</td>'.
 								'<td data-order="'.$row['duration'].'">' . sprintf('%.2f', $row['duration']/$folder['sum'] * 100) .'%</td></tr>';
 				}
